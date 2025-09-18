@@ -21,7 +21,7 @@ src=$1
 [ -f "$src" ] || { echo "Source file not found :$src"; exit 3; }
 
 srcname=$(basename -- "$src")
-srcdir=$(dirname -- "$src")
+srcdir=$(cd "$(dirname -- "$src")" && pwd)
 
 output=$(
 	awk '{
@@ -61,7 +61,7 @@ esac
 
 case $suf in
 	c) cc -o "$outname" "$srcname" 2>lab1_script.log || { echo "C compilation failed"; cat lab1_script.log >&2; exit 8; } ;;
-	cpp) c++ -o "$outname" "$srcname" 2>lab1_script.log || { echo "C++ compilation failed"; cat lab1_script.log >&2; exit 8; }; ;; 
+	cpp) c++ -o "$outname" "$srcname" 2>lab1_script.log || { echo "C++ compilation failed"; cat lab1_script.log >&2; exit 8; } ;; 
 	tex) pdflatex -interaction=nonstopmode -halt-on-error -output-directory "$tmpdir" "$srcname" >/dev/null 2>&1 \
 		|| { echo "TeX compilation failed"; exit 8; } ;;
 esac
