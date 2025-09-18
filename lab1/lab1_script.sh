@@ -18,7 +18,7 @@ fi
 
 src=$1
 
-[ ! -f "$src" ] || { echo "Source file not found :$src"; exit 3; }
+[ -f "$src" ] || { echo "Source file not found :$src"; exit 3; }
 
 srcname=$(basename -- "$src")
 srcdir=$(dirname -- "$src")
@@ -68,7 +68,7 @@ esac
 
 if [ -f "$outname" ]
 then
-	mv -- "$outname" "$srcdir/$outname" || { echo "Cannot move outout file"; exit 9; }
+	mv -- "$outname" "$srcdir/$outname" || { echo "Cannot move output file"; exit 9; }
 elif [ -f "${outname%.pdf}.pdf" ]
 then
 	mv -- "${outname%.pdf}.pdf" "$srcdir/$outname" || { echo "Cannot move pdf"; exit 9; }
