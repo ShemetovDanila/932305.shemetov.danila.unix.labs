@@ -8,7 +8,7 @@ cleanup() {
 	exit $rc
 }
 
-trap 'cleanup' EXIT INT TERM HUP QUIT
+trap 'cleanup' EXIT SIGINT SIGTERM SIGHUP SIGQUIT
 
 if [ $# -ne 1 ] 
 then 
