@@ -62,16 +62,17 @@ esac
 case $suf in
 	c) cc -o "$outname" "$srcname" 2>lab1_script.log || { echo "C compilation failed"; cat lab1_script.log >&2; exit 8; } ;;
 	cpp) c++ -o "$outname" "$srcname" 2>lab1_script.log || { echo "C++ compilation failed"; cat lab1_script.log >&2; exit 8; } ;; 
-	tex) pdflatex -interaction=nonstopmode -halt-on-error -output-directory "$tmpdir" "$srcname" >/dev/null 2>&1 \
+	tex) pdflatex -interaction=nonstopmode -halt-on-error -output-directory "$tmpdir" "$srcname" >/dev/null 2>&1\
 		|| { echo "TeX compilation failed"; exit 8; } ;;
 esac
 
 if [ -f "$outname" ]
 then
 	mv -- "$outname" "$srcdir/$outname" || { echo "Cannot move output file"; exit 9; }
-elif [ -f "${outname%.pdf}.pdf" ]
+elif [ "$suf" = "tex" ]
 then
-	mv -- "${outname%.pdf}.pdf" "$srcdir/$outname" || { echo "Cannot move pdf"; exit 9; }
+	pdfname="${srcname%.tex}.pdf"
+	mv -- "$tmpdir/$pdfname" "$srcdir/$outname.pdf" || { echo "Cannot move pdf"; exit 9; }
 else
 	echo "Output file not produced"
 	exit 9
