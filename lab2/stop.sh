@@ -1,2 +1,2 @@
 #!/bin/sh
-docker stop \$(docker ps -q --filter label=l2)
+docker stop $(docker ps -q --filter label=l2)
