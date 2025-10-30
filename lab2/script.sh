@@ -2,29 +2,29 @@
 S=/shared L=$S/.lock I=$(hostname|cut -c1-8) C=0
 mkdir -p $S; touch $L
 
+exec 200>"$L"
+
 while :; do
-	exec 200>"$L"
+	current_file=""
 	flock -x 200
-	
 	i=1
-	f=
 	while [ $i -le 999 ]; do
 		f=$(printf %03d $i) 
 		p=$S/$f
 		if [ ! -e "$p" ]; then
 			C=$((C+1))
 			echo "$I $C" > "$p"
+			current_file="$f"
 			break
 		fi
 		i=$((i+1))
 	done
 	
 	flock -u 200
-	exec 200>&-
 	
-	if [ -n "$f" ]; then
+	if [ -n "$current_file" ]; then
 		sleep 1
-		rm -f "$S/$f"
+		rm -f "$S/$current_file"
 		sleep 1
 	else
 		sleep 2
