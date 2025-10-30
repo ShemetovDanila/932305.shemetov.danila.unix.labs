@@ -5,10 +5,9 @@ mkdir -p $S; touch $L
 trap 'rm -f "$S/$f" 2>/dev/null; exit' EXIT TERM INT
 
 while :; do
-	(
+	{
 		flock -x 200
 		i=1
-		f=
 		while [ $i -le 999 ]; do
 			f=$(printf %03d $i) 
 			p=$S/$f
@@ -19,7 +18,7 @@ while :; do
 			fi
 			i=$((i+1))
 		done
-	) 200>"$L"
+	} 200>"$L"
 	sleep 1
 	rm -f "$S/$f"
 	sleep 1
