@@ -2,6 +2,8 @@
 S=/shared L=$S/.lock I=$(hostname|cut -c1-8) C=0
 mkdir -p $S; touch $L
 
+trap 'rm -f "$S/$f" 2>/dev/null; exit' EXIT TERM INT
+
 exec 200>"$L"
 while :; do
 	flock -x 200
@@ -12,7 +14,7 @@ while :; do
 		if [ ! -e "$p" ]; then
 			C=$((C+1))
 			echo "$I $C" > "$p"
-			echo $f
+			break
 		fi
 		i=$((i+1))
 	done
