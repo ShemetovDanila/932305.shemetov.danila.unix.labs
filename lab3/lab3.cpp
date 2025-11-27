@@ -3,98 +3,153 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <openssl/sha.h>
+#include <openssl/evp.h>
 #include <vector>
 #include <algorithm>
 
-typedef struct {
-    char path[1024];
-    unsigned char hash[SHA_DIGEST_LENGTH];
+const size_t HASH_SIZE = 32;      // SHA-256
+const size_t MAX_PATH_LEN = 2048;
+
+struct FileEntry {
+    char path[MAX_PATH_LEN];
+    unsigned char hash[HASH_SIZE];
     ino_t inode;
     dev_t device;
-} FileEntry;
+};
 
 void scan_directory(const char* dir_path, std::vector<FileEntry>& files) {
     DIR* dir = opendir(dir_path);
-    if (!dir) return;
-    
+    if (!dir) {
+        perror(dir_path);
+        return;
+    }
+
     struct dirent* entry;
     while ((entry = readdir(dir))) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             continue;
-        
-        char full_path[1024];
-        snprintf(full_path, 1024, "%s/%s", dir_path, entry->d_name);
-        
-        struct stat file_stat;
-        if (lstat(full_path, &file_stat) != 0) continue;
-        
-        if (S_ISLNK(file_stat.st_mode)) continue;
-        
-        if (S_ISDIR(file_stat.st_mode)) {
+
+        char full_path[MAX_PATH_LEN];
+        if (snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, entry->d_name)
+            >= (int)sizeof(full_path)) {
+            fprintf(stderr, "Path too long, skipping.\n");
+            continue;
+        }
+
+        struct stat st;
+        if (lstat(full_path, &st) != 0) {
+            perror(full_path);
+            continue;
+        }
+
+        if (S_ISLNK(st.st_mode)) continue;
+
+        if (S_ISDIR(st.st_mode)) {
             scan_directory(full_path, files);
-        } 
-        else if (S_ISREG(file_stat.st_mode)) {
+        }
+        else if (S_ISREG(st.st_mode)) {
             FileEntry fe;
-            strncpy(fe.path, full_path, 1023);
-            fe.path[1023] = '\0';
-            fe.inode = file_stat.st_ino;
-            fe.device = file_stat.st_dev;
+            memset(&fe, 0, sizeof(fe));
+            strncpy(fe.path, full_path, sizeof(fe.path)-1);
+            fe.inode = st.st_ino;
+            fe.device = st.st_dev;
             files.push_back(fe);
         }
     }
     closedir(dir);
 }
 
-void calculate_sha1(const char* filename, unsigned char* hash) {
-    FILE* file = fopen(filename, "rb");
-    if (!file) {
-        SHA1((const unsigned char*)"", 0, hash);
+void calculate_hash(const char* filename, unsigned char* hash_out) {
+    memset(hash_out, 0, HASH_SIZE);
+
+    FILE* f = fopen(filename, "rb");
+    if (!f) {
+        perror(filename);
         return;
     }
 
-    SHA_CTX sha_context;
-    SHA1_Init(&sha_context);
-    
-    unsigned char buffer[4096];
-    size_t bytes_read;
-    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
-        SHA1_Update(&sha_context, buffer, bytes_read);
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    if (!ctx) {
+        fprintf(stderr, "OpenSSL error: can't create ctx\n");
+        fclose(f);
+        return;
     }
-    
-    fclose(file);
-    SHA1_Final(hash, &sha_context);
+
+    if (EVP_DigestInit_ex(ctx, EVP_sha256(), NULL) != 1) {
+        fprintf(stderr, "DigestInit failed\n");
+        EVP_MD_CTX_free(ctx);
+        fclose(f);
+        return;
+    }
+
+    unsigned char buf[4096];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), f)) > 0) {
+        if (EVP_DigestUpdate(ctx, buf, n) != 1) {
+            fprintf(stderr, "DigestUpdate failed\n");
+            EVP_MD_CTX_free(ctx);
+            fclose(f);
+            return;
+        }
+    }
+
+    unsigned int hl = 0;
+    if (EVP_DigestFinal_ex(ctx, hash_out, &hl) != 1) {
+        fprintf(stderr, "DigestFinal failed\n");
+    }
+
+    EVP_MD_CTX_free(ctx);
+    fclose(f);
 }
 
-bool compare_hashes(const FileEntry& a, const FileEntry& b) {
-    return memcmp(a.hash, b.hash, SHA_DIGEST_LENGTH) < 0;
+bool hash_compare(const FileEntry& a, const FileEntry& b) {
+    int cmp = memcmp(a.hash, b.hash, HASH_SIZE);
+    return (cmp == 0) ? strcmp(a.path, b.path) < 0 : cmp < 0;
 }
 
 int main(int argc, char** argv) {
-    if (argc != 2) return 1;
-    
+    if (argc != 2) {
+        printf("Usage: %s <directory>\n", argv[0]);
+        return 1;
+    }
+
     std::vector<FileEntry> files;
     scan_directory(argv[1], files);
-    int file_count = files.size();
-    
-    for (int i = 0; i < file_count; i++) {
-        calculate_sha1(files[i].path, files[i].hash);
-    }
-    
-    std::sort(files.begin(), files.end(), compare_hashes);
-    
-    for (int i = 0; i < file_count; i++) {
-        int j = i + 1;
-        while (j < file_count && !memcmp(files[i].hash, files[j].hash, SHA_DIGEST_LENGTH)) {
-            if (files[i].device == files[j].device) {
-                if (link(files[i].path, files[j].path) == 0) {
-                    unlink(files[j].path);
+
+    for (auto& f : files)
+        calculate_hash(f.path, f.hash);
+
+    std::sort(files.begin(), files.end(), hash_compare);
+
+    for (size_t i = 0; i < files.size(); ) {
+        size_t j = i + 1;
+
+        while (j < files.size() &&
+               memcmp(files[i].hash, files[j].hash, HASH_SIZE) == 0) {
+
+            if (files[i].device == files[j].device &&
+                files[i].inode  != files[j].inode) {
+
+                if (unlink(files[j].path) != 0) {
+                    perror(files[j].path);
+                } else {
+                    if (link(files[i].path, files[j].path) != 0) {
+                        perror("link");
+                    } else {
+                        struct stat st;
+                        if (stat(files[j].path, &st) == 0) {
+                            files[j].inode = st.st_ino;
+                            files[j].device = st.st_dev;
+                        }
+                    }
                 }
             }
+
             j++;
         }
-        i = j - 1;
+
+        i = j;
     }
-    
+
     return 0;
 }
