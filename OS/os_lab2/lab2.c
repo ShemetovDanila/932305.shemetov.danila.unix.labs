@@ -27,17 +27,9 @@ int main() {
     signal(SIGINT, sigIntHandler);
 
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd == -1) {
-        perror("socket creation failed");
-        exit(EXIT_FAILURE);
-    }
 
     int opt = 1;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
-        perror("setsockopt failed");
-        close(server_fd);
-        exit(EXIT_FAILURE);
-    }
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     struct sockaddr_in address;
     memset(&address, 0, sizeof(address));
@@ -45,40 +37,20 @@ int main() {
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
-    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) == -1) {
-        perror("bind failed");
-        close(server_fd);
-        exit(EXIT_FAILURE);
-    }
+    bind(server_fd, (struct sockaddr *)&address, sizeof(address));
 
-    if (listen(server_fd, 1) == -1) {
-        perror("listen failed");
-        close(server_fd);
-        exit(EXIT_FAILURE);
-    }
+    listen(server_fd, 1);
 
     struct sigaction sa;
-    if (sigaction(SIGHUP, NULL, &sa) == -1) {
-        perror("sigaction get failed");
-        close(server_fd);
-        exit(EXIT_FAILURE);
-    }
+    sigaction(SIGHUP, NULL, &sa);
     sa.sa_handler = sigHupHandler;
     sa.sa_flags |= SA_RESTART;
-    if (sigaction(SIGHUP, &sa, NULL) == -1) {
-        perror("sigaction set failed");
-        close(server_fd);
-        exit(EXIT_FAILURE);
-    }
+    sigaction(SIGHUP, &sa, NULL);
 
     sigset_t blockedMask, origMask;
     sigemptyset(&blockedMask);
     sigaddset(&blockedMask, SIGHUP);
-    if (sigprocmask(SIG_BLOCK, &blockedMask, &origMask) == -1) {
-        perror("sigprocmask failed");
-        close(server_fd);
-        exit(EXIT_FAILURE);
-    }
+    sigprocmask(SIG_BLOCK, &blockedMask, &origMask);
 
     printf("Server started on port %d. PID: %d\n", PORT, getpid());
     printf("Send SIGHUP with: kill -HUP %d\n", getpid());
@@ -100,16 +72,12 @@ int main() {
         
         int ready = pselect(max_fd + 1, &read_fds, NULL, NULL, NULL, &origMask);
         
-        if (ready == -1) {
-            if (errno == EINTR) {
-                if (wasSigHup) {
-                    printf("Received SIGHUP signal\n");
-                    wasSigHup = 0;
-                }
-                continue;
+        if (ready == -1 && errno == EINTR) {
+            if (wasSigHup) {
+                printf("Received SIGHUP signal\n");
+                wasSigHup = 0;
             }
-            perror("pselect failed");
-            break;
+            continue;
         }
         
         if (FD_ISSET(server_fd, &read_fds)) {
@@ -117,10 +85,6 @@ int main() {
             socklen_t client_len = sizeof(client_addr);
             
             int new_socket = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
-            if (new_socket == -1) {
-                perror("accept failed");
-                continue;
-            }
             
             char client_ip[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
@@ -144,8 +108,6 @@ int main() {
             if (bytes_read <= 0) {
                 if (bytes_read == 0) {
                     printf("Connection closed by client\n");
-                } else {
-                    perror("recv failed");
                 }
                 close(active_socket);
                 active_socket = -1;
