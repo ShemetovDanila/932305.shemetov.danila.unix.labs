@@ -1,0 +1,1 @@
+savedcmd_/home/danila/unix_labs/932305.shemetov.danila.unix.labs/OS/os_lab3/ko.mod := printf '%s\n'   ko.o | awk '!x[$$0]++ { print("/home/danila/unix_labs/932305.shemetov.danila.unix.labs/OS/os_lab3/"$$0) }' > /home/danila/unix_labs/932305.shemetov.danila.unix.labs/OS/os_lab3/ko.mod

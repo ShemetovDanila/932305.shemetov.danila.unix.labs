@@ -1,0 +1,1 @@
+savedcmd_/home/danila/unix_labs/932305.shemetov.danila.unix.labs/OS/os_lab3/Module.symvers :=  scripts/mod/modpost -M -m -a      -o /home/danila/unix_labs/932305.shemetov.danila.unix.labs/OS/os_lab3/Module.symvers -T /home/danila/unix_labs/932305.shemetov.danila.unix.labs/OS/os_lab3/modules.order -i Module.symvers -e 
