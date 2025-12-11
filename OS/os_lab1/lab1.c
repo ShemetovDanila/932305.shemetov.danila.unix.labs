@@ -30,16 +30,20 @@ void* provider(void* arg) {
         
         pthread_mutex_unlock(&lock);
     }
+    
+    pthread_mutex_lock(&lock);
+    pthread_cond_signal(&cond);
+    pthread_mutex_unlock(&lock);
+
     return NULL;
 }
 
 void* consumer(void* arg) {
-    while (running) {
+    while (1) {
         pthread_mutex_lock(&lock);
         
         while (ready == 0 && running) {
             pthread_cond_wait(&cond, &lock);
-            printf("Consumer: Awoke from wait\n");
         }
         
         if (!running) {
