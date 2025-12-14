@@ -1,0 +1,1 @@
+savedcmd_/home/danila/unix_labs/932305.shemetov.danila.unix.labs/OS/os_lab4/modules.order := {   echo /home/danila/unix_labs/932305.shemetov.danila.unix.labs/OS/os_lab4/tsulab.o; :; } > /home/danila/unix_labs/932305.shemetov.danila.unix.labs/OS/os_lab4/modules.order
