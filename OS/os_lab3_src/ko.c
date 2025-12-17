@@ -17,6 +17,3 @@ static void __exit tsulab_exit(void) {
 module_init(tsulab_init);
 module_exit(tsulab_exit);
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("TSU Student");
-MODULE_DESCRIPTION("TSU OS Lab Module");
-MODULE_VERSION("1.0");
