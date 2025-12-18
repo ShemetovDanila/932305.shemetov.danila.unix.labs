@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    networks:
+      - app-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - app-network
+
+  web:
+    build: ./web_service
+    ports:
+      - "5000:5000"
+    depends_on:
+      - kafka
+    volumes:
+      - ./volumes/uploads:/app/uploads
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./volumes/uploads:/uploads
+      - ./volumes/archives:/archives
+    depends_on:
+      - web
+    networks:
+      - app-network
+
+  worker:
+    build: ./worker
+    depends_on:
+      - kafka
+    volumes:
+      - ./volumes/uploads:/app/uploads
+      - ./volumes/archives:/app/archives
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
