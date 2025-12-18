@@ -4,26 +4,31 @@
 #include <linux/proc_fs.h>
 #include <linux/uaccess.h>
 #include <linux/version.h>
+#include <linux/time.h>
 
 #define procfs_name "tsulab"
 static struct proc_dir_entry *our_proc_file = NULL;
 
 static ssize_t procfile_read(struct file *file_pointer, char __user *buffer,
                             size_t buffer_length, loff_t *offset) {
-    char s[7] = "TSU\n";
-    size_t len = strlen(s);
-    
-    if (*offset >= len)
+    struct timespec now;
+    getnstimeofday(&now);
+    now.tv_sec -= 499;  // ← Просто вычитаем 499 секунд (8 мин 19 сек)
+
+    struct tm tm;
+    time_to_tm(now.tv_sec, 0, &tm);
+
+    char time_str[20];
+    int len = snprintf(time_str, sizeof(time_str), "%02ld:%02ld:%02ld\n",
+                      (long)tm.tm_hour, (long)tm.tm_min, (long)tm.tm_sec);
+
+    if (*offset > 0)
         return 0;
-    
-    if (buffer_length < len - *offset)
-        len = buffer_length;
-    
-    if (copy_to_user(buffer, s + *offset, len))
+
+    if (copy_to_user(buffer, time_str, len))
         return -EFAULT;
-    
-    *offset += len;
-    pr_info("procfile read %s\n", file_pointer->f_path.dentry->d_name.name);
+
+    *offset = len;
     return len;
 }
 
@@ -55,8 +60,4 @@ static void __exit tsulab_exit(void) {
 
 module_init(tsulab_init);
 module_exit(tsulab_exit);
-
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("TSU Student");
-MODULE_DESCRIPTION("TSU OS Lab Module with /proc interface");
-MODULE_VERSION("1.0");
