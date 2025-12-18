@@ -11,24 +11,27 @@ static struct proc_dir_entry *our_proc_file = NULL;
 
 static ssize_t procfile_read(struct file *file_pointer, char __user *buffer,
                             size_t buffer_length, loff_t *offset) {
-    struct timespec now;
-    getnstimeofday(&now);
-    now.tv_sec -= 499;  // ← Просто вычитаем 499 секунд (8 мин 19 сек)
+    struct timespec64 now;
+    ktime_get_real_ts64(&now);
+    now.tv_sec -= 499;  // Время прохождения света от Солнца до Земли (8 минут 19 секунд)
 
     struct tm tm;
-    time_to_tm(now.tv_sec, 0, &tm);
+    time64_to_tm(now.tv_sec, 25200, &tm);  // UTC+7 = 7 * 3600 секунд
 
     char time_str[20];
-    int len = snprintf(time_str, sizeof(time_str), "%02ld:%02ld:%02ld\n",
-                      (long)tm.tm_hour, (long)tm.tm_min, (long)tm.tm_sec);
+    int len = snprintf(time_str, sizeof(time_str), "%02d:%02d:%02d\n",
+                      tm.tm_hour, tm.tm_min, tm.tm_sec);
 
-    if (*offset > 0)
+    if (*offset >= len)
         return 0;
-
-    if (copy_to_user(buffer, time_str, len))
+    
+    if (buffer_length < len - *offset)
+        len = buffer_length;
+    
+    if (copy_to_user(buffer, time_str + *offset, len))
         return -EFAULT;
-
-    *offset = len;
+    
+    *offset += len;
     return len;
 }
 

@@ -1,1 +1,1 @@
-savedcmd_/home/danila/unix_labs/932305.shemetov.danila.unix.labs/OS/os_lab4/tsulab.mod := printf '%s\n'   tsulab.o | awk '!x[$$0]++ { print("/home/danila/unix_labs/932305.shemetov.danila.unix.labs/OS/os_lab4/"$$0) }' > /home/danila/unix_labs/932305.shemetov.danila.unix.labs/OS/os_lab4/tsulab.mod
+savedcmd_/home/danila/unix/932305.shemetov.danila.unix.labs/OS/os_lab4/tsulab.mod := printf '%s\n'   tsulab.o | awk '!x[$$0]++ { print("/home/danila/unix/932305.shemetov.danila.unix.labs/OS/os_lab4/"$$0) }' > /home/danila/unix/932305.shemetov.danila.unix.labs/OS/os_lab4/tsulab.mod
