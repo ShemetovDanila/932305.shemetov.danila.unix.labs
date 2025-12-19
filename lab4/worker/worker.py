@@ -1,55 +1,92 @@
-import os
+from confluent_kafka import Consumer, KafkaException, KafkaError
+import json
 import time
-import zipfile
-from confluent_kafka import Consumer, KafkaException
+import os
+import random
 
-# Конфигурация
-KAFKA_BOOTSTRAP = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
-UPLOAD_DIR = '/app/uploads'
-ARCHIVE_DIR = '/app/archives'
-os.makedirs(ARCHIVE_DIR, exist_ok=True)
-
-# Kafka Consumer
 conf = {
-    'bootstrap.servers': KAFKA_BOOTSTRAP,
-    'group.id': 'photo-archive-group',
-    'auto.offset.reset': 'earliest'
+    'bootstrap.servers': os.environ['KAFKA_BROKER'],
+    'group.id': 'shop-workers',
+    'auto.offset.reset': 'earliest',
+    'enable.auto.commit': False,
+    'session.timeout.ms': 45000,
+    'max.poll.interval.ms': 300000
 }
 
 consumer = Consumer(conf)
-consumer.subscribe(['photo-archive'])
+consumer.subscribe(['internet_store'])
 
-def archive_photo(filepath, filename):
-    """Создает ZIP-архив из фото"""
-    archive_path = os.path.join(ARCHIVE_DIR, f"{filename}.zip")
-    with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        zipf.write(filepath, os.path.basename(filepath))
-    return archive_path
+worker_id = os.getenv('HOSTNAME', 'worker-unknown')
 
+def process_account(message):
+    print(f"[{worker_id}] Processing account action: {message['action']} for user {message['user_id']}")
+    time.sleep(0.05)
+    return True
+
+def process_cart(message):
+    action = "added" if message['action'] == 'add_to_cart' else "removed"
+    print(f"[{worker_id}] Processing cart: product {message['product_id']} {action} for user {message['user_id']}")
+    time.sleep(0.1)
+    return True
+
+def process_order(message):
+    priority = message.get('priority', 'medium')
+    delay = {'low': 0.3, 'medium': 0.5, 'high': 0.8}[priority]
+    
+    print(f"[{worker_id}] Processing order ({priority}): {message['order_id']} for user {message['user_id']}")
+    print(f"   Items: {len(message['items'])} items")
+    time.sleep(delay)
+    return True
+
+def process_message(message):
+    msg_type = message.get('type', 'unknown')
+    
+    handlers = {
+        'account': process_account,
+        'cart': process_cart,
+        'order': process_order
+    }
+    
+    handler = handlers.get(msg_type)
+    if not handler:
+        print(f"[{worker_id}] Unknown message type: {msg_type}")
+        return False
+    
+    try:
+        return handler(message)
+    except Exception as e:
+        print(f"[{worker_id}] Processing error for {msg_type}: {str(e)}")
+        return False
+
+print(f"Worker {worker_id} started. Waiting for messages...")
 try:
-    print("Worker запущен и ожидает задач...")
     while True:
-        msg = consumer.poll(1.0)
+        msg = consumer.poll(timeout=1.0)
         if msg is None:
             continue
+            
         if msg.error():
+            if msg.error().code() == KafkaError._PARTITION_EOF:
+                continue
             raise KafkaException(msg.error())
         
-        # Обработка задачи
-        filename = msg.key().decode('utf-8')
-        filepath = msg.value().decode('utf-8')
+        message = json.loads(msg.value().decode('utf-8'))
+        partition = msg.partition()
+        offset = msg.offset()
         
-        print(f"Обрабатываю файл: {filename}")
-        try:
-            archive_path = archive_photo(filepath, filename)
-            print(f"Архив создан: {archive_path}")
+        print(f"[{worker_id}] Received message (partition: {partition}, offset: {offset})")
+        
+        start_time = time.time()
+        success = process_message(message)
+        duration = time.time() - start_time
+        
+        if success:
+            consumer.commit(msg)
+            print(f"[{worker_id}] Successfully processed in {duration:.2f}s (partition {partition})")
+        else:
+            print(f"[{worker_id}] Message will be reprocessed (partition {partition})")
             
-            # Удаляем исходный файл
-            os.remove(filepath)
-        except Exception as e:
-            print(f"Ошибка обработки: {str(e)}")
-
 except KeyboardInterrupt:
-    print("Worker остановлен")
+    print(f"[{worker_id}] Shutting down gracefully")
 finally:
     consumer.close()
