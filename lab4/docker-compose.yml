@@ -29,15 +29,15 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_CREATE_TOPICS: "internet_store:12:1"
+      KAFKA_LOG_RETENTION_HOURS: 1
     networks:
       - shop-net
     healthcheck:
-      test: ["CMD", "bash", "-c", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      test: ["CMD", "bash", "-c", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
       interval: 15s
       timeout: 10s
-      retries: 15
-      start_period: 60s
+      retries: 20
+      start_period: 90s
 
   producer:
     build: ./producer
@@ -48,8 +48,6 @@ services:
       KAFKA_BROKER: kafka:9092
     networks:
       - shop-net
-    deploy:
-      replicas: 3
 
   worker:
     build: ./worker
@@ -60,8 +58,6 @@ services:
       KAFKA_BROKER: kafka:9092
     networks:
       - shop-net
-    deploy:
-      replicas: 12
 
 networks:
   shop-net:
